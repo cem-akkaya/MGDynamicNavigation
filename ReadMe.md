@@ -130,6 +130,63 @@ MGDN moves AI using:
 
 Movement remains stable even if the ship tilts or rotates.
 
+## Technical Notes (Important)
+
+MG Dynamic Navigation (MGDN) is a **technical proof-of-concept (TPOC)** that demonstrates how to build
+a localized navigation system on top of Unreal's standard NavMesh.  
+It is designed to solve navigation on **moving platforms** such as ships, elevators, transports, dynamic floors,
+and other actors that reposition or rotate in the world.
+
+MGDN combines two systems:
+
+1. **Unreal Engine NavMesh sampling**  
+   During baking, MGDN reads the UE NavMesh inside the volume using line traces.  
+   This gives accurate walkable data for any dynamic platform surface.
+
+2. **Localized grid + custom movement**  
+   Navigation is solved in *platform-local space* using a 3D voxel grid and A* pathfinding.  
+   AI follows this path via a spline that moves with the platform.
+
+> This approach ensures the AI stays correctly aligned with the platform without drifting.
+
+### Extensibility / Customization
+
+Because MGDN is a TPOC, the movement layer is intentionally minimal.  
+Depending on your game's movement rules, you may extend or customize the following:
+
+- **C++ movement injection**  
+  MGDN uses a lightweight XY interpolation + spline following.  
+  You can replace this with custom character movement logic, root motion, or your own animation-driven locomotion.
+
+- **Spline generation**  
+  You can modify spline smoothing, point interpolation, or generate curved/bezier paths instead of linear grid paths.
+
+- **Onboarding / Offboarding between systems**  
+  MGDN does *not* currently implement transitions between:
+  - Unreal’s native NavMesh navigation, and
+  - MGDN’s localized navigation on moving platforms.
+
+  If your game requires AI to walk from the world onto the platform (or vice-versa), you will need to implement a custom handover:
+  - Detect approach distance to platform
+  - Switch from UE navigation → MGDN navigation
+  - Or reverse when leaving the platform
+
+These features are intentionally left open so each project can implement the best solution for its gameplay style.
+
+### Summary
+
+MGDN is a flexible base system that:
+
+✔ Bakes local walkable data on moving platforms  
+✔ Performs 3D grid pathfinding in local space  
+✔ Moves AI with splines that follow the platform  
+✔ Allows developers to expand movement logic however they want
+
+But it does *not* impose a single complete game-ready solution.
+
+This keeps the plugin lightweight, extensible, and easy to adapt to different project needs.
+
+
 ## FAQ
 
 <details>
