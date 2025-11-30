@@ -1,8 +1,9 @@
 ﻿# MG Dynamic Navigation Plugin
 
-[![Plugin version number](https://img.shields.io/github/v/release/TO-FILL/MGDynamicNavigation?label=Version)](https://github.com/TO-FILL/MGDynamicNavigation/releases/latest)
-[![Unreal Engine Supported Versions](https://img.shields.io/badge/Unreal_Engine-5.4_%7C_5.5_%7C_5.6-9455CE?logo=unrealengine)](https://github.com/TO-FILL/MGDynamicNavigation/releases)
-[![License](https://img.shields.io/github/license/TO-FILL/MGDynamicNavigation)](LICENSE)
+![GitHub Release](https://img.shields.io/github/v/release/cem-akkaya/MGDynamicNavigation)
+[![Unreal Engine Supported Versions](https://img.shields.io/badge/Unreal_Engine-_%7C_5.6-9455CE?logo=unrealengine)](https://github.com/TO-FILL/MGDynamicNavigation/releases)
+[![License](https://img.shields.io/github/license/cem-akkaya/MGDynamicNavigation
+)](LICENSE)
 [![Actively Maintained](https://img.shields.io/badge/Maintenance%20Level-Actively%20Maintained-green.svg)](#)
 
 <img src="https://raw.githubusercontent.com/cem-akkaya/MGDynamicNavigation/refs/heads/master/Resources/Splash.jpg" alt="plugin-mgdn" width="100%"/>
@@ -35,12 +36,12 @@ If you'd like to contribute, feel free to create a pull request.
 - No dependency on UE’s built-in NavMesh
 
 ## Examples
-| <img src="Resources/Example1.gif" width="370"/> | <img src="Resources/Example2.gif" width="370"/> |
-|:-----------------------------------------------:|:-----------------------------------------------:|
-| AI following a path on a moving ship.           | Multi-deck navigation with vertical transitions. |
+|  <img src="Resources/Example1.gif" width="370"/>  |  <img src="Resources/Example3.gif" width="370"/>   |
+|:-------------------------------------------------:|:--------------------------------------------------:|
+| Navmesh data point generations and visualization. | Multi-deck navigation paths and spline components. |
 
-| <img src="Resources/Example3.gif" width="790"/> |
-|:----------------------------------------------:|
+| <img src="Resources/Example2.gif" width="790"/>  |
+|:------------------------------------------------:|
 | Dynamic navigation on a physics-driven platform. |
 
 ## Installation
