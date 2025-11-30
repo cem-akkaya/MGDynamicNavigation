@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/github/license/TO-FILL/MGDynamicNavigation)](LICENSE)
 [![Actively Maintained](https://img.shields.io/badge/Maintenance%20Level-Actively%20Maintained-green.svg)](#)
 
-<img src="https://github.com/cem-akkaya/LightAwareness/blob/prod/Resources/Demo6.gif" alt="plugin-mgdn" width="100%"/>
+<img src="https://raw.githubusercontent.com/cem-akkaya/MGDynamicNavigation/refs/heads/master/Resources/Splash.jpg" alt="plugin-mgdn" width="100%"/>
 
 ## Overview
 
@@ -35,9 +35,6 @@ If you'd like to contribute, feel free to create a pull request.
 - No dependency on UE’s built-in NavMesh
 
 ## Examples
-
-Replace with your own images / GIFs:
-
 | <img src="Resources/Example1.gif" width="370"/> | <img src="Resources/Example2.gif" width="370"/> |
 |:-----------------------------------------------:|:-----------------------------------------------:|
 | AI following a path on a moving ship.           | Multi-deck navigation with vertical transitions. |
