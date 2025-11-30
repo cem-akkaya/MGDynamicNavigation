@@ -59,21 +59,21 @@ Install the plugin like any other Unreal Engine plugin:
 
 After you enabled the plugin,
 1. Add **MGDN Nav Volume** component to your moving platform.
-# <img src="Resources/Demo2.jpg" width="830"/>
+# <img src="Resources/demo2.jpg" width="830"/>
 2. Adjust the **volume size** to cover walkable areas.
-# <img src="Resources/Demo3.jpg" width="830"/>
+# <img src="Resources/demo3.jpg" width="830"/>
 3. Create a new **MGDNNavDataAsset** and assign it to the component.
-# <img src="Resources/Demo4.jpg" width="830"/>
+# <img src="Resources/demo4.jpg" width="830"/>
 4. Place your moving platform in the scene.Make sure you have a **NavMesh** on your scene and walkable geometry is present and ready for navigation.
-# <img src="Resources/Demo5.jpg" width="830"/>
+# <img src="Resources/demo5.jpg" width="830"/>
 5. Press Btn **Bake Grid** optionally adjust cell sizes to match your needs.to generate the voxel grid. This may take a few seconds depending on the geometry size. This simply uses the NavMesh to generate the voxel grid into a data asset.
-# <img src="Resources/Demo6.jpg" width="830"/>
+# <img src="Resources/demo6.jpg" width="830"/>
 6. Press visualize grid button to see the voxel grid.
-# <img src="Resources/Demo7.jpg" width="830"/>
+# <img src="Resources/demo7.jpg" width="830"/>
 7. Use MGDN movement functions to move the ai or any controller over the platform.
-# <img src="Resources/Demo8.jpg" width="830"/>
+# <img src="Resources/demo8.jpg" width="830"/>
 8. MGDN movement functions are available in C++ and Blueprint and uses dynamical pathfinding creating splines over the voxel grid uneffected by platform rotation, speed, movement or any other factors enabling.
-# <img src="Resources/Demo9.jpg" width="830"/>
+# <img src="Resources/demo9.jpg" width="830"/>
 
 ## How It Works
 
@@ -96,7 +96,7 @@ After you enabled the plugin,
   - Physics/collision is restored.
   - Callback event fires.
 
-# <img src="Resources/Demo1.jpg" width="830"/>
+# <img src="Resources/demo1.jpg" width="830"/>
 
 ### MGDN Nav Volume Component
 
