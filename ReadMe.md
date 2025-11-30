@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/github/license/TO-FILL/MGDynamicNavigation)](LICENSE)
 [![Actively Maintained](https://img.shields.io/badge/Maintenance%20Level-Actively%20Maintained-green.svg)](#)
 
-<img src="TO-FILL/splash.jpg" alt="plugin-mgdn" width="100%"/>
+<img src="https://github.com/cem-akkaya/LightAwareness/blob/prod/Resources/Demo6.gif" alt="plugin-mgdn" width="100%"/>
 
 ## Overview
 
