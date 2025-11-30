@@ -54,23 +54,49 @@ Install the plugin like any other Unreal Engine plugin:
 - Assign or create a **MGDNNavDataAsset**
 - Click **Bake Grid**
 
-<img src="Resources/ss1.jpg" width="830"/>
 
 ## Quick Start
 
+After you enabled the plugin,
 1. Add **MGDN Nav Volume** component to your moving platform.
+# <img src="Resources/Demo2.jpg" width="830"/>
 2. Adjust the **volume size** to cover walkable areas.
-3. Click **Bake Now** to generate the navigation grid.
-4. Call the Blueprint function:
+# <img src="Resources/Demo3.jpg" width="830"/>
+3. Create a new **MGDNNavDataAsset** and assign it to the component.
+# <img src="Resources/Demo4.jpg" width="830"/>
+4. Place your moving platform in the scene.Make sure you have a **NavMesh** on your scene and walkable geometry is present and ready for navigation.
+# <img src="Resources/Demo5.jpg" width="830"/>
+5. Press Btn **Bake Grid** optionally adjust cell sizes to match your needs.to generate the voxel grid. This may take a few seconds depending on the geometry size. This simply uses the NavMesh to generate the voxel grid into a data asset.
+# <img src="Resources/Demo6.jpg" width="830"/>
+6. Press visualize grid button to see the voxel grid.
+# <img src="Resources/Demo7.jpg" width="830"/>
+7. Use MGDN movement functions to move the ai or any controller over the platform.
+# <img src="Resources/Demo8.jpg" width="830"/>
+8. MGDN movement functions are available in C++ and Blueprint and uses dynamical pathfinding creating splines over the voxel grid uneffected by platform rotation, speed, movement or any other factors enabling.
+# <img src="Resources/Demo9.jpg" width="830"/>
 
+## How It Works
 
-Example Blueprint:
+- A **Nav Volume Component** defines a 3D bounding box around a moving platform (ship, elevator, vehicle, etc.).
+- When you press **Bake**, the plugin:
+  - Divides the volume into a 3D voxel grid.
+  - Line traces each voxel against the Unreal NavMesh.
+  - Marks voxels as **walkable / not walkable** and stores them in a data asset.
+- During gameplay, the runtime system:
+  - Detects which platform the AI is currently standing on.
+  - Converts world-space positions to **platform-local coordinates**.
+  - Performs **3D A* pathfinding** on the voxel grid.
+  - Outputs a sequence of grid points that form a valid path.
+- A spline is generated locally on the platform:
+  - Spline moves *with* the platform (no drifting).
+  - AI follows the spline smoothly with rotation and interpolation.
+- Physics interactions are suppressed during movement to avoid pushing or destabilizing the platform.
+- When AI reaches the goal:
+  - Spline is destroyed.
+  - Physics/collision is restored.
+  - Callback event fires.
 
-<img src="Resources/ss2.jpg" width="830"/>
-
-## Component Details
-
-<img src="Resources/ss3.jpg" width="830"/>
+# <img src="Resources/Demo1.jpg" width="830"/>
 
 ### MGDN Nav Volume Component
 
@@ -88,8 +114,6 @@ Example Blueprint:
 - **Bake Now** – Regenerates grid
 
 ### MGDynamicNavigationSubsystem
-
-<img src="Resources/ss4.jpg" width="830"/>
 
 - Manages all MGDN volumes in the world
 - Handles AI movement updates
