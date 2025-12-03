@@ -283,22 +283,19 @@ bool UMGDynamicNavigationSubsystem::HandleAvoidanceFreeze(
 
     if (!bStillBlocked)
     {
-        // Not blocked anymore 
+        M.FreezeTimer = 0.f;
         return false;
     }
 
-    M.SplineDistance = M.SplineDistance;
-
-    // Measure freeze time
     M.FreezeTimer += W->GetDeltaSeconds();
 
     if (M.FreezeTimer >= 1.f)
     {
         M.FreezeTimer = 0.f;
-        return false; 
+        return false;
     }
 
-    return true; 
+    return true;
 }
 
 bool UMGDynamicNavigationSubsystem::InsertAvoidanceDetour(
