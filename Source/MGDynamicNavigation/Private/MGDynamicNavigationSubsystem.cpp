@@ -30,6 +30,19 @@ void UMGDynamicNavigationSubsystem::RegisterVolume(UMGDNNavVolumeComponent* Volu
     Instances.Add(N);
 }
 
+void UMGDynamicNavigationSubsystem::DeregisterVolume(UMGDNNavVolumeComponent* Volume)
+{
+    if (!Volume) return;
+
+    for (int32 i = Instances.Num() - 1; i >= 0; i--)
+    {
+        if (Instances[i].VolumeComp == Volume)
+        {
+            Instances.RemoveAt(i);
+        }
+    }
+}
+
 void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
 {
     for (int32 i = ActiveMoves.Num() - 1; i >= 0; i--)

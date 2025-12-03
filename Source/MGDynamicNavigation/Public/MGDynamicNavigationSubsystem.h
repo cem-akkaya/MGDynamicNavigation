@@ -67,6 +67,8 @@ public:
 
     virtual void Tick(float DeltaTime) override;
     void RegisterVolume(UMGDNNavVolumeComponent* Volume);
+    void DeregisterVolume(UMGDNNavVolumeComponent* Volume);
+    
     virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UMGDN_Tick, STATGROUP_Tickables); }
 
     virtual bool IsTickable() const override { return true; }

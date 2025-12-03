@@ -43,6 +43,19 @@ void UMGDNNavVolumeComponent::OnRegister()
 	}
 }
 
+void UMGDNNavVolumeComponent::OnUnregister()
+{
+	if (UWorld* W = GetWorld())
+	{
+		if (auto* S = W->GetSubsystem<UMGDynamicNavigationSubsystem>())
+		{
+			S->DeregisterVolume(this);
+		}
+	}
+
+	Super::OnUnregister();
+}
+
 void UMGDNNavVolumeComponent::BakeNow()
 {
 #if WITH_EDITOR
