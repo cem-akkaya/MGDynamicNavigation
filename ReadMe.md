@@ -30,7 +30,7 @@ If you'd like to contribute, feel free to create a pull request.
 - Works on **any moving/physics actor** (ships, elevators, rigs, etc.)
 - Local-space **A\*** pathfinding
 - Support for **ramps, slopes, multi-deck layouts**
-- Spline-based movement with smoothing and rotation interpolation
+- Lightweight avoidance system (sphere-trace based) with automatic detour generation
 - Grid visualization tools
 - Fully Blueprint-callable movement functions
 - No dependency on UE’s built-in NavMesh
@@ -89,6 +89,7 @@ After you enabled the plugin,
   - Performs **3D A* pathfinding** on the voxel grid.
   - Outputs a sequence of grid points that form a valid path.
 - A spline is generated locally on the platform:
+  - The spline is corrected against the real platform surface using per-point sphere traces for accurate Z placement, including slopes and stairs.
   - Spline moves *with* the platform (no drifting).
   - AI follows the spline smoothly with rotation and interpolation.
 - Physics interactions are suppressed during movement to avoid pushing or destabilizing the platform.
@@ -130,6 +131,7 @@ MGDN moves AI using:
 - Optional velocity injection for animation playback
 
 Movement remains stable even if the ship tilts or rotates.
+MGDN also includes a simple avoidance system: AI perform a forward sphere-trace to detect other pawns and inject a temporary detour point into the spline. When avoidance is triggered, MGDN optionally freezes the actor briefly to prevent oscillation and ensures the detour path remains centered inside the platform bounds.
 
 ## Technical Notes (Important)
 
@@ -149,6 +151,14 @@ MGDN combines two systems:
    AI follows this path via a spline that moves with the platform.
 
 > This approach ensures the AI stays correctly aligned with the platform without drifting.
+
+### Obstacle Avoidance
+MGDN includes a minimal deterministic avoidance layer.  
+When another pawn is detected in the forward trace:
+- A detour point is added to the spline
+- A new local path is computed
+- The AI optionally freezes movement to prevent rapid oscillation
+  This system is intentionally simple and designed as a foundation that can be extended per-project.
 
 ### Extensibility / Customization
 
@@ -220,6 +230,8 @@ This keeps the plugin lightweight, extensible, and easy to adapt to different pr
 - Path smoothing depends on grid density
 - Physics collisions on AI may affect the platform
 - Avoid tiny cell heights unless necessary
+- Avoidance is intentionally lightweight and may require tuning for dense crowds
+- Surface Z detection uses traces; extremely noisy geometry may require adjusting trace height/radius
 
 ## License
 
