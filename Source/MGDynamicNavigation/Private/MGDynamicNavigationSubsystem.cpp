@@ -208,11 +208,11 @@ void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
 
         FTransform T = Owner->GetActorTransform();
         FVector L = T.InverseTransformPosition(PawnLoc);
-        FVector HS = I.VolumeComp->SourceAsset->HalfSize;
+        FVector HSCheck = I.VolumeComp->SourceAsset->HalfSize;
 
-        if (L.X >= -HS.X && L.X <= HS.X &&
-            L.Y >= -HS.Y && L.Y <= HS.Y &&
-            L.Z >= -HS.Z && L.Z <= HS.Z)
+        if (L.X >= -HSCheck.X && L.X <= HSCheck.X &&
+            L.Y >= -HSCheck.Y && L.Y <= HSCheck.Y &&
+            L.Z >= -HSCheck.Z && L.Z <= HSCheck.Z)
         {
             Platform = Owner;
             Inst = &I;
@@ -232,9 +232,26 @@ void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
         return;
     }
 
+    // Get capsule sizes and make a fallback if no capsule which is an edge case
+    float CapsuleR = 40.f;
+    float CapsuleH = 88.f;
+
+    if (UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Pawn->GetRootComponent()))
+    {
+        CapsuleR = Capsule->GetScaledCapsuleRadius();
+        CapsuleH = Capsule->GetScaledCapsuleHalfHeight();
+    }
+
+    // A bit increase the radius
+    const float SafeX = CapsuleR * 1.25f;
+    const float SafeY = CapsuleR * 1.25f;
+
     const FTransform T = Platform->GetActorTransform();
     FVector PawnLocal = T.InverseTransformPosition(PawnLoc);
     FVector EndLocal  = T.InverseTransformPosition(Goal);
+
+    // Cache HalfSize 
+    const FVector HS = Inst->VolumeComp->SourceAsset->HalfSize;
 
     TArray<FVector> WorldPath;
     if (!Inst->RuntimeNav->FindPath(T, PawnLoc, Goal, WorldPath))
@@ -248,7 +265,14 @@ void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
     for (const FVector& W : WorldPath)
     {
         FVector P = T.InverseTransformPosition(W);
+
+        // Keep Z 
         P.Z = PawnLocal.Z;
+
+        // Clamp path so spline not in edges
+        P.X = FMath::Clamp(P.X, -HS.X + SafeX, HS.X - SafeX);
+        P.Y = FMath::Clamp(P.Y, -HS.Y + SafeY, HS.Y - SafeY);
+
         LocalPath.Add(P);
     }
 
@@ -275,6 +299,7 @@ void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
 
     ActiveMoves.Add(Move);
 }
+
 
 bool UMGDynamicNavigationSubsystem::IsValidGameWorld() const
 {
