@@ -19,15 +19,24 @@ void UMGDynamicNavigationSubsystem::RegisterVolume(UMGDNNavVolumeComponent* Volu
 {
     if (!Volume) return;
 
-    for (FMGDNInstance& I : Instances)
+    AActor* Owner = Volume->GetOwner();
+    if (!Owner) return;
+
+    for (const FMGDNInstance& I : Instances)
+    {
+        if (I.VolumeComp && I.VolumeComp->GetOwner() == Owner)
+            return;
+    }
+
+    for (const FMGDNInstance& I : Instances)
         if (I.VolumeComp == Volume)
             return;
 
-    FMGDNInstance N;
-    N.VolumeComp = Volume;
-    N.RuntimeNav = Volume->RuntimeNav;
+    FMGDNInstance NewInst;
+    NewInst.VolumeComp = Volume;
+    NewInst.RuntimeNav = Volume->RuntimeNav;
 
-    Instances.Add(N);
+    Instances.Add(NewInst);
 }
 
 void UMGDynamicNavigationSubsystem::DeregisterVolume(UMGDNNavVolumeComponent* Volume)
@@ -265,4 +274,89 @@ void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
     Move.Callback = Callback;
 
     ActiveMoves.Add(Move);
+}
+
+bool UMGDynamicNavigationSubsystem::IsValidGameWorld() const
+{
+    UWorld* W = GetWorld();
+    if (!W) return false;
+
+    return W->WorldType == EWorldType::Game
+        || W->WorldType == EWorldType::PIE;
+}
+
+TArray<UMGDNNavVolumeComponent*> UMGDynamicNavigationSubsystem::GetAllNavigationVolumes() const
+{
+    if (!IsValidGameWorld())
+        return {};
+
+    TArray<UMGDNNavVolumeComponent*> Out;
+    for (const FMGDNInstance& I : Instances)
+        if (I.VolumeComp)
+            Out.Add(I.VolumeComp);
+
+    return Out;
+}
+
+bool UMGDynamicNavigationSubsystem::IsPawnOnShip(APawn* Pawn) const
+{
+    if (!Pawn) return false;
+
+    const FVector P = Pawn->GetActorLocation();
+
+    for (const FMGDNInstance& I : Instances)
+    {
+        if (!I.VolumeComp || !I.VolumeComp->SourceAsset) continue;
+
+        AActor* Owner = I.VolumeComp->GetOwner();
+        if (!Owner) continue;
+
+        const FTransform T = Owner->GetActorTransform();
+        const FVector L = T.InverseTransformPosition(P);
+
+        const FVector HS = I.VolumeComp->SourceAsset->HalfSize;
+
+        if (L.X >= -HS.X && L.X <= HS.X &&
+            L.Y >= -HS.Y && L.Y <= HS.Y &&
+            L.Z >= -HS.Z && L.Z <= HS.Z)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool UMGDynamicNavigationSubsystem::IsControllerOnShip(AAIController* Controller) const
+{
+    return (Controller && Controller->GetPawn()) ?
+        IsPawnOnShip(Controller->GetPawn()) : false;
+}
+
+AActor* UMGDynamicNavigationSubsystem::GetPawnPlatform(APawn* Pawn) const
+{
+    if (!Pawn) return nullptr;
+
+    const FVector P = Pawn->GetActorLocation();
+
+    for (const FMGDNInstance& I : Instances)
+    {
+        if (!I.VolumeComp || !I.VolumeComp->SourceAsset) continue;
+
+        AActor* Owner = I.VolumeComp->GetOwner();
+        if (!Owner) continue;
+
+        const FTransform T = Owner->GetActorTransform();
+        const FVector L = T.InverseTransformPosition(P);
+        const FVector HS = I.VolumeComp->SourceAsset->HalfSize;
+
+        if (L.X >= -HS.X && L.X <= HS.X &&
+            L.Y >= -HS.Y && L.Y <= HS.Y &&
+            L.Z >= -HS.Z && L.Z <= HS.Z)
+        {
+            return Owner;
+        }
+    }
+
+    return nullptr;
 }

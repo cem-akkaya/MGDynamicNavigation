@@ -64,7 +64,25 @@ public:
 
     UPROPERTY() TArray<FMGDNInstance> Instances;
     UPROPERTY() TArray<FMGDNActiveMove> ActiveMoves;
+    
+    // Helper functions for status queries
+    
+    /** Returns all registered MGDN volumes */
+    UFUNCTION(BlueprintCallable, Category="MGDN")
+    TArray<UMGDNNavVolumeComponent*> GetAllNavigationVolumes() const;
 
+    /** Returns true if the pawn is currently inside a MGDN nav platform */
+    UFUNCTION(BlueprintCallable, Category="MGDN")
+    bool IsPawnOnShip(APawn* Pawn) const;
+
+    /** Returns true if controller's pawn is inside a MGDN nav platform */
+    UFUNCTION(BlueprintCallable, Category="MGDN")
+    bool IsControllerOnShip(AAIController* Controller) const;
+
+    /** Returns the platform actor the pawn is on (nullptr if none) */
+    UFUNCTION(BlueprintCallable, Category="MGDN")
+    AActor* GetPawnPlatform(APawn* Pawn) const;
+    
     virtual void Tick(float DeltaTime) override;
     void RegisterVolume(UMGDNNavVolumeComponent* Volume);
     void DeregisterVolume(UMGDNNavVolumeComponent* Volume);
@@ -81,4 +99,6 @@ public:
         const FVector& Goal,
         float AcceptanceRadius,
         float MoveSpeed, FMGDNMoveFinishedDynamicDelegate Callback);
+    
+    bool IsValidGameWorld() const;
 };
