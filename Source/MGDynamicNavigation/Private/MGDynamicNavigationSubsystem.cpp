@@ -67,18 +67,58 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
         UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Pawn->GetRootComponent());
         if (!Capsule) continue;
 
-        // Disable pawn physics during movement
         Capsule->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
         auto CurrentColProfile = Capsule->GetCollisionProfileName();
-        
+
         const FTransform PlatformTransform = M.Platform->GetActorTransform();
-        InsertAvoidanceDetour(M, Pawn, Capsule, PlatformTransform);
         
-        // Advance spline distance
+        // ---------------------------------------------------------------------
+        // 0. Avoidance .. @Todo Freeze and Unfreeze pawn functions and refactor tick, freeze logic.
+        // ---------------------------------------------------------------------
+        
+        InsertAvoidanceDetour(M, Pawn, Capsule, PlatformTransform);
+        if (M.AvoidanceCooldown > 0.f)
+        {
+            // Check if still blocked
+            bool bFrozen = HandleAvoidanceFreeze(M, Pawn, Capsule, PlatformTransform);
+
+            if (bFrozen)
+            {
+                // Reduce cooldown timer
+                M.AvoidanceCooldown -= DeltaTime;
+                if (M.AvoidanceCooldown < 0.f) M.AvoidanceCooldown = 0.f;
+
+                // While frozen, ground pawn and skip advance
+                FVector P = Pawn->GetActorLocation();
+
+                FVector Start = P + FVector(0,0,50);
+                FVector End   = P - FVector(0,0,200);
+
+                FHitResult Hit;
+                FCollisionQueryParams Params;
+                Params.AddIgnoredActor(Pawn);
+
+                if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+                {
+                    float HH = Capsule->GetScaledCapsuleHalfHeight();
+                    P.Z = Hit.Location.Z + HH;
+                    Pawn->SetActorLocation(P, false, nullptr, ETeleportType::None);
+                }
+
+                // Skip movement this tick
+                continue;
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // 1. Advance spline
+        // ---------------------------------------------------------------------
         M.SplineDistance += M.MoveSpeed * DeltaTime;
         const float EndDist = M.Spline->GetSplineLength();
 
-        // Target world location along spline
+        // ---------------------------------------------------------------------
+        // 2. Query spline position
+        // ---------------------------------------------------------------------
         FVector TargetPos = M.Spline->GetLocationAtDistanceAlongSpline(
             M.SplineDistance,
             ESplineCoordinateSpace::World
@@ -86,12 +126,14 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
 
         FVector PawnPos = Pawn->GetActorLocation();
 
-        // Smooth movement (XY only)
+        // ---------------------------------------------------------------------
+        // 3. Smooth XY movement
+        // ---------------------------------------------------------------------
         FVector DesiredXY = PawnPos;
         DesiredXY.X = TargetPos.X;
         DesiredXY.Y = TargetPos.Y;
 
-        const float MoveInterpSpeed = 20.0f;
+        const float MoveInterpSpeed = 20.f;
 
         FVector SmoothedPos = FMath::VInterpTo(
             PawnPos,
@@ -100,27 +142,50 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
             MoveInterpSpeed
         );
 
-        // Apply movement
         Pawn->SetActorLocation(SmoothedPos, false, nullptr, ETeleportType::None);
 
-        // Restore Vel
+        // ---------------------------------------------------------------------
+        // 4. Velocity restore (optional)
+        // ---------------------------------------------------------------------
         if (UMovementComponent* MoveComp = Pawn->GetMovementComponent())
         {
             FVector Tangent = M.Spline->GetTangentAtDistanceAlongSpline(
-                M.SplineDistance, ESplineCoordinateSpace::World
+                M.SplineDistance,
+                ESplineCoordinateSpace::World
             ).GetSafeNormal();
 
             MoveComp->Velocity = Tangent * M.MoveSpeed;
         }
 
-        // Smooth rotation toward movement direction
-        FVector MoveDir = (DesiredXY - PawnPos).GetSafeNormal2D();
+        // ---------------------------------------------------------------------
+        // 5. Grounding trace (correct final Z)
+        // ---------------------------------------------------------------------
+        {
+            FVector P = Pawn->GetActorLocation();
 
+            FVector Start = P + FVector(0,0,50);
+            FVector End   = P - FVector(0,0,200);
+
+            FHitResult Hit;
+            FCollisionQueryParams Params;
+            Params.AddIgnoredActor(Pawn);
+
+            if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+            {
+                float HH = Capsule->GetScaledCapsuleHalfHeight();
+                P.Z = Hit.Location.Z + HH;
+                Pawn->SetActorLocation(P, false, nullptr, ETeleportType::None);
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // 6. Rotation smoothing
+        // ---------------------------------------------------------------------
+        FVector MoveDir = (DesiredXY - PawnPos).GetSafeNormal2D();
         if (!MoveDir.IsNearlyZero())
         {
             FRotator TargetRot(0.f, MoveDir.Rotation().Yaw, 0.f);
-
-            const float RotInterpSpeed = 8.0f;
+            const float RotInterpSpeed = 8.f;
 
             FRotator NewRot = FMath::RInterpTo(
                 Pawn->GetActorRotation(),
@@ -133,11 +198,14 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
             M.Controller->SetControlRotation(NewRot);
         }
 
-        // Arrival check
+        // ---------------------------------------------------------------------
+        // 7. Arrival
+        // ---------------------------------------------------------------------
         if (M.SplineDistance >= EndDist - M.AcceptanceRadius)
         {
             Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
             Capsule->SetCollisionProfileName(CurrentColProfile);
+
             USplineComponent* S = M.Spline;
             M.Spline = nullptr;
             if (S) S->DestroyComponent();
@@ -145,7 +213,7 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
             auto CB = M.Callback;
             ActiveMoves.RemoveAt(i);
             CB.ExecuteIfBound(EMGDNMoveResult::Success);
-            // Restore Vel
+
             if (UMovementComponent* MoveComp = Pawn->GetMovementComponent())
             {
                 MoveComp->Velocity = FVector::ZeroVector;
@@ -321,9 +389,9 @@ bool UMGDynamicNavigationSubsystem::InsertAvoidanceDetour(
     FVector Forward = Pawn->GetActorForwardVector();
 
     const float Rad = Capsule->GetScaledCapsuleRadius();
-    const float DetectDist = Rad * 2.0f;
+    const float DetectDist = Rad * 1.5f;
 
-    const float CheckRadius = Rad * 0.9f;
+    const float CheckRadius = Rad * 0.8f;
 
     TArray<AActor*> Ignore;
     Ignore.Add(Pawn);
