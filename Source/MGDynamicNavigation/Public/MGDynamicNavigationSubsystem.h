@@ -1,6 +1,7 @@
 ﻿// MG Dynamic Navigation plugin Created by Cem Akkaya licensed under MIT.
 #pragma once
 #include "CoreMinimal.h"
+#include "MGDNNavDataAsset.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "Components/SplineComponent.h"
 #include "Subsystems/WorldSubsystem.h"
@@ -52,6 +53,9 @@ struct FMGDNActiveMove
 
     UPROPERTY() float AcceptanceRadius = 50.f;
     UPROPERTY() FMGDNMoveFinishedDynamicDelegate Callback;
+    
+    UPROPERTY() float AvoidanceCooldown = 0.f;
+    UPROPERTY() float FreezeTimer = 0.f;
 };
 
 
@@ -84,6 +88,7 @@ public:
     AActor* GetPawnPlatform(APawn* Pawn) const;
     
     virtual void Tick(float DeltaTime) override;
+    
     void RegisterVolume(UMGDNNavVolumeComponent* Volume);
     void DeregisterVolume(UMGDNNavVolumeComponent* Volume);
     
@@ -92,6 +97,22 @@ public:
     virtual bool IsTickable() const override { return true; }
 
     void TickMGDN(float DeltaTime);
+
+    bool HandleAvoidanceFreeze(FMGDNActiveMove& M, APawn* Pawn, UCapsuleComponent* Capsule,
+                               const FTransform& PlatformTransform);
+    
+    bool InsertAvoidanceDetour(FMGDNActiveMove& M, APawn* Pawn, UCapsuleComponent* Capsule,
+                               const FTransform& PlatformTransform);
+
+    static float GetSurfaceZ_Local(const UMGDNNavDataAsset* Asset, const FVector& Local);
+    
+    static FVector GetSurfacePoint_Local(const UMGDNNavDataAsset* Asset, const FVector& Local);
+
+    static float GetTrueSurfaceZ_Local(
+        const UMGDNNavDataAsset* Asset,
+        const FTransform& PlatformTransform,
+        const FVector& Local,
+        UWorld* World);
 
     UFUNCTION(BlueprintCallable)
     void MoveToLocationMGDNAsync(

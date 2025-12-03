@@ -120,17 +120,31 @@ void UMGDNNavVolumeComponent::BakeNow()
 
         FVector WP = T.TransformPosition(Local);
 
-        FHitResult Hit;
-        bool bHit = UKismetSystemLibrary::LineTraceSingle(
-            W,
-            WP + FVector(0,0,50),
-            WP - FVector(0,0,50),
-            ETraceTypeQuery::TraceTypeQuery1,
-            false, {}, EDrawDebugTrace::None,
-            Hit, true
-        );
+    	FHitResult Hit;
+    	bool bHit = UKismetSystemLibrary::SphereTraceSingle(
+			W,
+			WP + FVector(0,0,50),
+			WP - FVector(0,0,50),
+			CellSize * 0.4f,
+			ETraceTypeQuery::TraceTypeQuery1,
+			false, {},
+			EDrawDebugTrace::None,
+			Hit,
+			true
+		);
 
     	Node.bWalkable = bHit;
+
+    	if (Node.bWalkable)
+    	{
+    		FVector N = Hit.Normal;
+
+    		// Reject vertical
+    		if (N.Z < 0.6f)
+    		{
+    			Node.bWalkable = false;
+    		}
+    	}
 
     	// check if there is navmesh one more time
     	if (Node.bWalkable)

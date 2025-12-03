@@ -4,10 +4,12 @@
 #include "MGDNRuntimeNavMesh.h"
 
 #include "AIController.h"
+#include "EngineUtils.h"
 #include "MGDNNavDataAsset.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Components/SplineComponent.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "GameFramework/PawnMovementComponent.h"
 
 void UMGDynamicNavigationSubsystem::Tick(float DeltaTime)
@@ -68,7 +70,10 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
         // Disable pawn physics during movement
         Capsule->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
         auto CurrentColProfile = Capsule->GetCollisionProfileName();
-
+        
+        const FTransform PlatformTransform = M.Platform->GetActorTransform();
+        InsertAvoidanceDetour(M, Pawn, Capsule, PlatformTransform);
+        
         // Advance spline distance
         M.SplineDistance += M.MoveSpeed * DeltaTime;
         const float EndDist = M.Spline->GetSplineLength();
@@ -86,7 +91,7 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
         DesiredXY.X = TargetPos.X;
         DesiredXY.Y = TargetPos.Y;
 
-        const float MoveInterpSpeed = 6.0f;
+        const float MoveInterpSpeed = 20.0f;
 
         FVector SmoothedPos = FMath::VInterpTo(
             PawnPos,
@@ -149,13 +154,11 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
     }
 }
 
-
-
 static USplineComponent* CreateSplinePath(
     AActor* Platform,
     const FVector& PawnLocal,
-    const TArray<FVector>& LocalPath
-)
+    const TArray<FVector>& LocalPath,
+    float SafeRadius)
 {
     USplineComponent* Spline = NewObject<USplineComponent>(Platform);
     Spline->RegisterComponent();
@@ -164,12 +167,62 @@ static USplineComponent* CreateSplinePath(
 
     Spline->ClearSplinePoints(false);
 
-    Spline->AddPoint(FSplinePoint(0, PawnLocal, ESplinePointType::Linear));
+    UMGDNNavVolumeComponent* Vol = Cast<UMGDNNavVolumeComponent>(
+        Platform->GetComponentByClass(UMGDNNavVolumeComponent::StaticClass()));
+    UMGDNNavDataAsset* Asset = (Vol ? Vol->SourceAsset : nullptr);
+
+    FVector StartLocal = PawnLocal;
+
+    if (Asset)
+    {
+        const FVector HS = Asset->HalfSize;
+
+        StartLocal.X = FMath::Clamp(StartLocal.X, -HS.X + SafeRadius, HS.X - SafeRadius);
+        StartLocal.Y = FMath::Clamp(StartLocal.Y, -HS.Y + SafeRadius, HS.Y - SafeRadius);
+
+        float Z =
+            UMGDynamicNavigationSubsystem::GetTrueSurfaceZ_Local(
+                Asset,
+                Platform->GetActorTransform(),
+                StartLocal,
+                Platform->GetWorld());
+
+        StartLocal.Z = Z;
+    }
+
+    Spline->AddPoint(FSplinePoint(0, StartLocal, ESplinePointType::Linear));
 
     int32 I = 1;
     for (FVector P : LocalPath)
     {
-        P.Z = PawnLocal.Z; 
+        if (Asset)
+        {
+            const FVector HS = Asset->HalfSize;
+
+            P.X = FMath::Clamp(P.X, -HS.X + SafeRadius, HS.X - SafeRadius);
+            P.Y = FMath::Clamp(P.Y, -HS.Y + SafeRadius, HS.Y - SafeRadius);
+
+            if (I <= 3)
+            {
+                float Z =
+                    UMGDynamicNavigationSubsystem::GetTrueSurfaceZ_Local(
+                        Asset,
+                        Platform->GetActorTransform(),
+                        P,
+                        Platform->GetWorld());
+
+                P.Z = Z;
+            }
+            else
+            {
+                P.Z = PawnLocal.Z;
+            }
+        }
+        else
+        {
+            P.Z = PawnLocal.Z;
+        }
+
         Spline->AddPoint(FSplinePoint(I++, P, ESplinePointType::Linear));
     }
 
@@ -177,6 +230,313 @@ static USplineComponent* CreateSplinePath(
     Spline->UpdateSpline();
 
     return Spline;
+}
+
+bool UMGDynamicNavigationSubsystem::HandleAvoidanceFreeze(
+    FMGDNActiveMove& M,
+    APawn* Pawn,
+    UCapsuleComponent* Capsule,
+    const FTransform& PlatformTransform)
+{
+    UWorld* W = Pawn->GetWorld();
+    if (!W) return false;
+
+    FVector PawnPos = Pawn->GetActorLocation();
+    FVector Forward = Pawn->GetActorForwardVector();
+
+    const float Rad = Capsule->GetScaledCapsuleRadius();
+    const float DetectDist = Rad * 2.0f;
+    const float CheckRadius = Rad * 0.9f;
+
+    TArray<AActor*> Ignore;
+    Ignore.Add(Pawn);
+
+    TArray<FHitResult> Hits;
+
+    bool bHit = UKismetSystemLibrary::SphereTraceMulti(
+        Pawn,
+        PawnPos,
+        PawnPos + Forward * DetectDist,
+        CheckRadius,
+        UEngineTypes::ConvertToTraceType(ECC_Camera),
+        false,
+        Ignore,
+        EDrawDebugTrace::None,
+        Hits,
+        true
+    );
+
+    bool bStillBlocked = false;
+
+    if (bHit)
+    {
+        for (const FHitResult& H : Hits)
+        {
+            APawn* OtherPawn = Cast<APawn>(H.GetActor());
+            if (OtherPawn && OtherPawn != Pawn)
+            {
+                bStillBlocked = true;
+                break;
+            }
+        }
+    }
+
+    if (!bStillBlocked)
+    {
+        // Not blocked anymore 
+        return false;
+    }
+
+    M.SplineDistance = M.SplineDistance;
+
+    // Measure freeze time
+    M.FreezeTimer += W->GetDeltaSeconds();
+
+    if (M.FreezeTimer >= 1.f)
+    {
+        M.FreezeTimer = 0.f;
+        return false; 
+    }
+
+    return true; 
+}
+
+bool UMGDynamicNavigationSubsystem::InsertAvoidanceDetour(
+    FMGDNActiveMove& M,
+    APawn* Pawn,
+    UCapsuleComponent* Capsule,
+    const FTransform& PlatformTransform)
+{
+    if (!Pawn || !Capsule || !M.Spline)
+        return false;
+    
+    if (M.AvoidanceCooldown > 0.f)
+    {
+        if (HandleAvoidanceFreeze(M, Pawn, Capsule, PlatformTransform))
+            return true;  // freezing
+        return false; 
+    }
+
+    UWorld* W = Pawn->GetWorld();
+    if (!W) return false;
+
+    FVector PawnPos = Pawn->GetActorLocation();
+    FVector Forward = Pawn->GetActorForwardVector();
+
+    const float Rad = Capsule->GetScaledCapsuleRadius();
+    const float DetectDist = Rad * 2.0f;
+
+    const float CheckRadius = Rad * 0.9f;
+
+    TArray<AActor*> Ignore;
+    Ignore.Add(Pawn);
+
+    TArray<FHitResult> Hits;
+
+    bool bAnyHit = UKismetSystemLibrary::SphereTraceMulti(
+        Pawn,
+        PawnPos,
+        PawnPos + Forward * DetectDist,
+        CheckRadius,
+        UEngineTypes::ConvertToTraceType(ECC_Camera),
+        false,
+        Ignore,
+        EDrawDebugTrace::None,
+        Hits,
+        true,
+        FLinearColor::Yellow,
+        FLinearColor::Red,
+        0.05f
+    );
+
+    if (!bAnyHit)
+        return false;
+
+    bool bHasValidPawnHit = false;
+    for (const FHitResult& H : Hits)
+    {
+        APawn* OtherPawn = Cast<APawn>(H.GetActor());
+        if (!OtherPawn || OtherPawn == Pawn)
+            continue;
+
+        UE_LOG(LogTemp, Display, TEXT("Avoidance detour hit %s"), *OtherPawn->GetName());
+        bHasValidPawnHit = true;
+        break;
+    }
+
+    if (!bHasValidPawnHit)
+        return false;
+
+    FVector Right = Pawn->GetActorRightVector();
+    float Side = -1.f;
+
+    float OffsetDist = Rad * 2.0f;
+    FVector AvoidWorld = PawnPos + Right * Side * OffsetDist;
+
+    FVector PawnLocal = PlatformTransform.InverseTransformPosition(PawnPos);
+    FVector AvoidLocal = PlatformTransform.InverseTransformPosition(AvoidWorld);
+
+    AvoidLocal.Z = PawnLocal.Z;
+
+    AActor* Platform = GetPawnPlatform(Pawn);
+    if (!Platform)
+        return false;
+
+    FMGDNInstance* Inst = nullptr;
+    for (FMGDNInstance& I : Instances)
+    {
+        if (I.VolumeComp && I.VolumeComp->GetOwner() == Platform)
+        {
+            Inst = &I;
+            break;
+        }
+    }
+
+    if (!Inst || !Inst->RuntimeNav)
+        return false;
+
+    const FVector HSCheck = Inst->VolumeComp->SourceAsset->HalfSize;
+    if (AvoidLocal.X < -HSCheck.X || AvoidLocal.X > HSCheck.X ||
+        AvoidLocal.Y < -HSCheck.Y || AvoidLocal.Y > HSCheck.Y)
+    {
+        return false;
+    }
+
+    TArray<FVector> NewWorldPath;
+
+    FVector AvoidWorldRecalc = PlatformTransform.TransformPosition(AvoidLocal);
+
+    FVector GoalLocal = M.LocalGoal;
+    GoalLocal.Z = PawnLocal.Z;
+
+    if (GoalLocal.X < -HSCheck.X || GoalLocal.X > HSCheck.X ||
+        GoalLocal.Y < -HSCheck.Y || GoalLocal.Y > HSCheck.Y)
+    {
+        return false;
+    }
+
+    FVector GoalWorld = PlatformTransform.TransformPosition(GoalLocal);
+
+    if (!Inst->RuntimeNav->FindPath(
+        PlatformTransform,
+        AvoidWorldRecalc,
+        GoalWorld,
+        NewWorldPath))
+    {
+        return false;
+    }
+
+    TArray<FVector> NewLocal;
+    NewLocal.Reserve(NewWorldPath.Num());
+
+    for (const FVector& WP : NewWorldPath)
+    {
+        FVector P = PlatformTransform.InverseTransformPosition(WP);
+        P.Z = PawnLocal.Z;
+        NewLocal.Add(P);
+    }
+
+    TArray<FVector> FinalLocal;
+    FinalLocal.Reserve(1 + NewLocal.Num());
+    FinalLocal.Add(AvoidLocal);
+    for (const FVector& P : NewLocal)
+    {
+        FinalLocal.Add(P);
+    }
+
+    USplineComponent* OldSpline = M.Spline;
+    USplineComponent* NewSpline = CreateSplinePath(
+        Platform,
+        PawnLocal,
+        FinalLocal,
+        Rad * 0.25f
+    );
+
+    M.Spline = NewSpline;
+    if (OldSpline)
+        OldSpline->DestroyComponent();
+
+    M.SplineDistance = 0.f;
+
+    M.AvoidanceCooldown = 1.f;
+    return true;
+}
+
+// This returns Z height local
+float UMGDynamicNavigationSubsystem::GetSurfaceZ_Local(
+    const UMGDNNavDataAsset* Asset,
+    const FVector& Local)
+{
+    if (!Asset) return Local.Z;
+
+    const FVector HS = Asset->HalfSize;
+
+    int32 GX = FMath::Clamp(int32((Local.X + HS.X) / Asset->CellSize),   0, Asset->GridX - 1);
+    int32 GY = FMath::Clamp(int32((Local.Y + HS.Y) / Asset->CellSize),   0, Asset->GridY - 1);
+    int32 GZ = FMath::Clamp(int32((Local.Z + HS.Z) / Asset->CellHeight), 0, Asset->GridZ - 1);
+
+    int32 Id = Asset->Index(GX, GY, GZ);
+    if (!Asset->Nodes.IsValidIndex(Id))
+        return Local.Z;
+
+    return Asset->Nodes[Id].Height;
+}
+
+// This returns the point from data
+FVector UMGDynamicNavigationSubsystem::GetSurfacePoint_Local(
+    const UMGDNNavDataAsset* Asset,
+    const FVector& Local)
+{
+    FVector P = Local;
+    float Z = GetSurfaceZ_Local(Asset, Local);
+    P.Z = Z;
+    return P;
+}
+
+float UMGDynamicNavigationSubsystem::GetTrueSurfaceZ_Local(
+    const UMGDNNavDataAsset* Asset,
+    const FTransform& PlatformTransform,
+    const FVector& Local,
+    UWorld* World)
+{
+    FVector Up   = PlatformTransform.GetRotation().RotateVector(FVector::UpVector);
+    FVector Down = -Up;
+
+    FVector WorldPos = PlatformTransform.TransformPosition(Local);
+
+    FVector Start = WorldPos + Up * 150.f;
+    FVector End   = WorldPos + Down * 150.f;
+
+    TArray<AActor*> Ignore;
+
+    // Ignore ALL pawns
+    for (TActorIterator<APawn> It(World); It; ++It)
+    {
+        Ignore.Add(*It);
+    }
+
+    FHitResult Hit;
+
+    bool bHit = UKismetSystemLibrary::SphereTraceSingle(
+        World,
+        Start,
+        End,
+        5.f,
+        UEngineTypes::ConvertToTraceType(ECC_Visibility),
+        true,
+        Ignore,
+        EDrawDebugTrace::None,
+        Hit,
+        true
+    );
+
+    if (bHit)
+    {
+        FVector LocalHit = PlatformTransform.InverseTransformPosition(Hit.Location);
+        return LocalHit.Z;
+    }
+
+    return GetSurfaceZ_Local(Asset, Local);
 }
 
 void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
@@ -277,7 +637,7 @@ void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
     }
 
     USplineComponent* Spline =
-        CreateSplinePath(Platform, PawnLocal, LocalPath);
+        CreateSplinePath(Platform, PawnLocal, LocalPath, SafeX);
 
     if (!Spline)
     {
