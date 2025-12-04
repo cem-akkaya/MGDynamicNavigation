@@ -56,6 +56,8 @@ struct FMGDNActiveMove
     
     UPROPERTY() float AvoidanceCooldown = 0.f;
     UPROPERTY() float FreezeTimer = 0.f;
+    
+    bool bDirectMove = false;
 };
 
 
@@ -77,11 +79,11 @@ public:
 
     /** Returns true if the pawn is currently inside a MGDN nav platform */
     UFUNCTION(BlueprintCallable, Category="MGDN")
-    bool IsPawnOnShip(APawn* Pawn) const;
+    bool IsPawnOnPlatform(APawn* Pawn) const;
 
     /** Returns true if controller's pawn is inside a MGDN nav platform */
     UFUNCTION(BlueprintCallable, Category="MGDN")
-    bool IsControllerOnShip(AAIController* Controller) const;
+    bool IsControllerOnPlatform(AAIController* Controller) const;
 
     /** Returns the platform actor the pawn is on (nullptr if none) */
     UFUNCTION(BlueprintCallable, Category="MGDN")
@@ -107,13 +109,14 @@ public:
     static float GetSurfaceZ_Local(const UMGDNNavDataAsset* Asset, const FVector& Local);
     
     static FVector GetSurfacePoint_Local(const UMGDNNavDataAsset* Asset, const FVector& Local);
-
+    
     static float GetTrueSurfaceZ_Local(
         const UMGDNNavDataAsset* Asset,
         const FTransform& PlatformTransform,
         const FVector& Local,
         UWorld* World);
 
+    /** Controller commonly used move function using pathfinding. */
     UFUNCTION(BlueprintCallable)
     void MoveToLocationMGDNAsync(
         AAIController* Controller,
@@ -121,5 +124,10 @@ public:
         float AcceptanceRadius,
         float MoveSpeed, FMGDNMoveFinishedDynamicDelegate Callback);
     
+    /** Move function not using pathfinding. Direct Move can be used to offboard AI from platform or onto it. */
+    UFUNCTION(BlueprintCallable)
+    void MoveDirectMGDNAsync(AAIController* Controller, const FVector& Goal, float MoveSpeed,
+                             FMGDNMoveFinishedDynamicDelegate Callback, AActor* PlatformOverride);
+
     bool IsValidGameWorld() const;
 };

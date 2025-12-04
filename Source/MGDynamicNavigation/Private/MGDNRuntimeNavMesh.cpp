@@ -292,7 +292,7 @@ bool UMGDNRuntimeNavMesh::FindPath(
 			return false;
 		}
 
-		UE_LOG(LogTemp, Warning,
+		UE_LOG(LogTemp, Display,
 			TEXT("[MGDN] FindPath: Start fallback used → %d"), Fallback);
 
 		StartIndex = Fallback;
@@ -311,7 +311,7 @@ bool UMGDNRuntimeNavMesh::FindPath(
 			return false;
 		}
 
-		UE_LOG(LogTemp, Warning,
+		UE_LOG(LogTemp, Display,
 			TEXT("[MGDN] FindPath: End fallback used → %d"), FallbackEnd);
 
 		EndIndex = FallbackEnd;

@@ -76,7 +76,6 @@ void UMGDNNavVolumeComponent::BakeNow()
     const FVector Min = LocalBox.Min;
     const FVector Max = LocalBox.Max;
     const FVector Extent = (Max - Min) * 0.5f;
-    // --------------------------------------------------
 
     float CW = (CellSize   > 1.f) ? CellSize   : 100.f;
     float CH = (CellHeight > 1.f) ? CellHeight : 100.f;
@@ -120,60 +119,65 @@ void UMGDNNavVolumeComponent::BakeNow()
 
         FVector WP = T.TransformPosition(Local);
 
-    	FHitResult Hit;
-    	bool bHit = UKismetSystemLibrary::SphereTraceSingle(
-			W,
-			WP + FVector(0,0,50),
-			WP - FVector(0,0,50),
-			CellSize * 0.4f,
-			ETraceTypeQuery::TraceTypeQuery1,
-			false, {},
-			EDrawDebugTrace::None,
-			Hit,
-			true
-		);
+        FHitResult Hit;
+        bool bHit = UKismetSystemLibrary::SphereTraceSingle(
+            W,
+            WP + FVector(0,0,50),
+            WP - FVector(0,0,50),
+            CellSize * 0.4f,
+            ETraceTypeQuery::TraceTypeQuery1,
+            false, {},
+            EDrawDebugTrace::None,
+            Hit,
+            true
+        );
 
-    	Node.bWalkable = bHit;
+        Node.bWalkable = bHit;
 
-    	if (Node.bWalkable)
-    	{
-    		FVector N = Hit.Normal;
+        if (Node.bWalkable)
+        {
+            FVector N = Hit.Normal;
 
-    		// Reject vertical
-    		if (N.Z < 0.6f)
-    		{
-    			Node.bWalkable = false;
-    		}
-    	}
+            // Reject vertical
+            if (N.Z < 0.6f)
+            {
+                Node.bWalkable = false;
+            }
+        }
 
-    	// check if there is navmesh one more time
-    	if (Node.bWalkable)
-    	{
-    		FVector TestPoint = Hit.Location;
+        if (Node.bWalkable)
+        {
+            Node.Height = Hit.Location.Z;
+        }
 
-    		 UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(W);
-    		if (NavSys)
-    		{
-    			const ANavigationData* NavData = NavSys->GetDefaultNavDataInstance(FNavigationSystem::DontCreate);
-    			const ARecastNavMesh* Recast = Cast<ARecastNavMesh>(NavData);
+        // check if there is navmesh one more time
+        if (Node.bWalkable)
+        {
+            FVector TestPoint = Hit.Location;
 
-    			if (Recast)
-    			{
-    				FNavLocation OutLoc;
-    				const bool bNavHit = Recast->ProjectPoint(
-						TestPoint,
-						OutLoc,
-						FVector(50,50,200)
-					);
+            UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(W);
+            if (NavSys)
+            {
+                const ANavigationData* NavData = NavSys->GetDefaultNavDataInstance(FNavigationSystem::DontCreate);
+                const ARecastNavMesh* Recast = Cast<ARecastNavMesh>(NavData);
 
-    				if (!bNavHit)
-    				{
-    					// NOT ON NAVMESH → reject this voxel
-    					Node.bWalkable = false;
-    				}
-    			}
-    		}
-    	}
+                if (Recast)
+                {
+                    FNavLocation OutLoc;
+                    const bool bNavHit = Recast->ProjectPoint(
+                        TestPoint,
+                        OutLoc,
+                        FVector(50,50,200)
+                    );
+
+                    if (!bNavHit)
+                    {
+                        // NOT ON NAVMESH → reject this voxel
+                        Node.bWalkable = false;
+                    }
+                }
+            }
+        }
     }
 
     SourceAsset->MarkPackageDirty();
@@ -189,6 +193,7 @@ void UMGDNNavVolumeComponent::BakeNow()
 
 #endif
 }
+
 
 void UMGDNNavVolumeComponent::VisualizeGrid()
 {

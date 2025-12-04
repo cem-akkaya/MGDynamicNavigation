@@ -75,41 +75,44 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
         // ---------------------------------------------------------------------
         // 0. Avoidance .. @Todo Freeze and Unfreeze pawn functions and refactor tick, freeze logic.
         // ---------------------------------------------------------------------
-        
-        InsertAvoidanceDetour(M, Pawn, Capsule, PlatformTransform);
-        if (M.AvoidanceCooldown > 0.f)
+        if (!M.bDirectMove)
         {
-            // Check if still blocked
-            bool bFrozen = HandleAvoidanceFreeze(M, Pawn, Capsule, PlatformTransform);
-
-            if (bFrozen)
+            // If this a direct move we skip all these since we possibly don't have platform or going out of platform.
+            InsertAvoidanceDetour(M, Pawn, Capsule, PlatformTransform);
+            if (M.AvoidanceCooldown > 0.f)
             {
-                // Reduce cooldown timer
-                M.AvoidanceCooldown -= DeltaTime;
-                if (M.AvoidanceCooldown < 0.f) M.AvoidanceCooldown = 0.f;
+                // Check if still blocked
+                bool bFrozen = HandleAvoidanceFreeze(M, Pawn, Capsule, PlatformTransform);
 
-                // While frozen, ground pawn and skip advance
-                FVector P = Pawn->GetActorLocation();
-
-                FVector Start = P + FVector(0,0,50);
-                FVector End   = P - FVector(0,0,200);
-
-                FHitResult Hit;
-                FCollisionQueryParams Params;
-                Params.AddIgnoredActor(Pawn);
-
-                if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+                if (bFrozen)
                 {
-                    float HH = Capsule->GetScaledCapsuleHalfHeight();
-                    P.Z = Hit.Location.Z + HH;
-                    Pawn->SetActorLocation(P, false, nullptr, ETeleportType::None);
-                }
+                    // Reduce cooldown timer
+                    M.AvoidanceCooldown -= DeltaTime;
+                    if (M.AvoidanceCooldown < 0.f) M.AvoidanceCooldown = 0.f;
 
-                // Skip movement this tick
-                continue;
+                    // While frozen, ground pawn and skip advance
+                    FVector P = Pawn->GetActorLocation();
+
+                    FVector Start = P + FVector(0,0,50);
+                    FVector End   = P - FVector(0,0,200);
+
+                    FHitResult Hit;
+                    FCollisionQueryParams Params;
+                    Params.AddIgnoredActor(Pawn);
+
+                    if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+                    {
+                        float HH = Capsule->GetScaledCapsuleHalfHeight();
+                        P.Z = Hit.Location.Z + HH;
+                        Pawn->SetActorLocation(P, false, nullptr, ETeleportType::None);
+                    }
+
+                    // Skip movement this tick
+                    continue;
+                }
             }
         }
-
+        
         // ---------------------------------------------------------------------
         // 1. Advance spline
         // ---------------------------------------------------------------------
@@ -158,28 +161,7 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
         }
 
         // ---------------------------------------------------------------------
-        // 5. Grounding trace (correct final Z)
-        // ---------------------------------------------------------------------
-        {
-            FVector P = Pawn->GetActorLocation();
-
-            FVector Start = P + FVector(0,0,50);
-            FVector End   = P - FVector(0,0,200);
-
-            FHitResult Hit;
-            FCollisionQueryParams Params;
-            Params.AddIgnoredActor(Pawn);
-
-            if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
-            {
-                float HH = Capsule->GetScaledCapsuleHalfHeight();
-                P.Z = Hit.Location.Z + HH;
-                Pawn->SetActorLocation(P, false, nullptr, ETeleportType::None);
-            }
-        }
-
-        // ---------------------------------------------------------------------
-        // 6. Rotation smoothing
+        // 5. Rotation smoothing
         // ---------------------------------------------------------------------
         FVector MoveDir = (DesiredXY - PawnPos).GetSafeNormal2D();
         if (!MoveDir.IsNearlyZero())
@@ -199,7 +181,7 @@ void UMGDynamicNavigationSubsystem::TickMGDN(float DeltaTime)
         }
 
         // ---------------------------------------------------------------------
-        // 7. Arrival
+        // 6. Arrival
         // ---------------------------------------------------------------------
         if (M.SplineDistance >= EndDist - M.AcceptanceRadius)
         {
@@ -270,21 +252,11 @@ static USplineComponent* CreateSplinePath(
             P.X = FMath::Clamp(P.X, -HS.X + SafeRadius, HS.X - SafeRadius);
             P.Y = FMath::Clamp(P.Y, -HS.Y + SafeRadius, HS.Y - SafeRadius);
 
-            if (I <= 3)
-            {
-                float Z =
-                    UMGDynamicNavigationSubsystem::GetTrueSurfaceZ_Local(
-                        Asset,
-                        Platform->GetActorTransform(),
-                        P,
-                        Platform->GetWorld());
-
-                P.Z = Z;
-            }
-            else
-            {
-                P.Z = PawnLocal.Z;
-            }
+            P.Z = UMGDynamicNavigationSubsystem::GetTrueSurfaceZ_Local(
+                    Asset,
+                    Platform->GetActorTransform(),
+                    P,
+                    Platform->GetWorld());
         }
         else
         {
@@ -389,7 +361,7 @@ bool UMGDynamicNavigationSubsystem::InsertAvoidanceDetour(
     FVector Forward = Pawn->GetActorForwardVector();
 
     const float Rad = Capsule->GetScaledCapsuleRadius();
-    const float DetectDist = Rad * 1.5f;
+    const float DetectDist = Rad * 2.5f;
 
     const float CheckRadius = Rad * 0.8f;
 
@@ -564,29 +536,33 @@ float UMGDynamicNavigationSubsystem::GetTrueSurfaceZ_Local(
     const FVector& Local,
     UWorld* World)
 {
-    FVector Up   = PlatformTransform.GetRotation().RotateVector(FVector::UpVector);
-    FVector Down = -Up;
+    if (!Asset || !World) return Local.Z;
 
-    FVector WorldPos = PlatformTransform.TransformPosition(Local);
+    const float CoarseZ = GetSurfaceZ_Local(Asset, Local);
 
-    FVector Start = WorldPos + Up * 150.f;
-    FVector End   = WorldPos + Down * 150.f;
+    FVector LocalAdjusted = Local;
+    LocalAdjusted.Z = CoarseZ;
+
+    const float H = Asset->CellHeight;
+
+    const FVector Up   = PlatformTransform.GetRotation().RotateVector(FVector::UpVector);
+    const FVector Down = -Up;
+
+    const FVector BaseWorld = PlatformTransform.TransformPosition(LocalAdjusted);
+
+    const FVector WorldStart = BaseWorld + Up   * (H * 5.f);
+    const FVector WorldEnd   = BaseWorld + Down * (H * 10.f);
 
     TArray<AActor*> Ignore;
-
-    // Ignore ALL pawns
     for (TActorIterator<APawn> It(World); It; ++It)
-    {
         Ignore.Add(*It);
-    }
 
     FHitResult Hit;
-
     bool bHit = UKismetSystemLibrary::SphereTraceSingle(
         World,
-        Start,
-        End,
-        5.f,
+        WorldStart,
+        WorldEnd,
+        12.f,
         UEngineTypes::ConvertToTraceType(ECC_Visibility),
         true,
         Ignore,
@@ -597,12 +573,12 @@ float UMGDynamicNavigationSubsystem::GetTrueSurfaceZ_Local(
 
     if (bHit)
     {
-        FVector LocalHit = PlatformTransform.InverseTransformPosition(Hit.Location);
-        return LocalHit.Z;
+        return PlatformTransform.InverseTransformPosition(Hit.Location).Z;
     }
 
-    return GetSurfaceZ_Local(Asset, Local);
+    return CoarseZ;
 }
+
 
 void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
     AAIController* Controller,
@@ -725,6 +701,108 @@ void UMGDynamicNavigationSubsystem::MoveToLocationMGDNAsync(
     ActiveMoves.Add(Move);
 }
 
+void UMGDynamicNavigationSubsystem::MoveDirectMGDNAsync(
+    AAIController* Controller,
+    const FVector& Goal,
+    float MoveSpeed,
+    FMGDNMoveFinishedDynamicDelegate Callback,
+    AActor* PlatformOverride /* = nullptr */)
+{
+    if (!Controller || !Controller->GetPawn())
+    {
+        Callback.ExecuteIfBound(EMGDNMoveResult::Failed_InvalidController);
+        return;
+    }
+    
+    APawn* Pawn = Controller->GetPawn();
+    FVector PawnLoc = Pawn->GetActorLocation();
+
+    USplineComponent* Spline = nullptr;
+    FVector LocalGoal;
+    FVector LocalStart;
+
+    // no platform build a pure straight spline
+    if (!PlatformOverride)
+    {
+        Spline = NewObject<USplineComponent>(this);
+        Spline->RegisterComponent();
+        Spline->SetWorldLocation(PawnLoc);
+
+        Spline->ClearSplinePoints(false);
+        Spline->AddPoint(FSplinePoint(0, PawnLoc, ESplinePointType::Linear));
+        Spline->AddPoint(FSplinePoint(1, Goal,    ESplinePointType::Linear));
+        Spline->SetClosedLoop(false);
+        Spline->UpdateSpline();
+
+        LocalGoal = Goal;
+        LocalStart = PawnLoc;
+    }
+    else
+    {
+        // if there is a platform local-space spline
+        AActor* Platform = PlatformOverride;
+
+        FMGDNInstance* Inst = nullptr;
+        for (FMGDNInstance& I : Instances)
+        {
+            if (I.VolumeComp && I.VolumeComp->GetOwner() == Platform)
+            {
+                Inst = &I;
+                break;
+            }
+        }
+
+        if (!Inst || !Inst->VolumeComp || !Inst->VolumeComp->SourceAsset)
+        {
+            Callback.ExecuteIfBound(EMGDNMoveResult::Failed_RuntimeNavMissing);
+            return;
+        }
+
+        UMGDNNavDataAsset* Asset = Inst->VolumeComp->SourceAsset;
+        const FTransform T = Platform->GetActorTransform();
+
+        FVector HS = Asset->HalfSize;
+
+        LocalStart = T.InverseTransformPosition(PawnLoc);
+        LocalGoal  = T.InverseTransformPosition(Goal);
+
+        LocalStart.X = FMath::Clamp(LocalStart.X, -HS.X, HS.X);
+        LocalStart.Y = FMath::Clamp(LocalStart.Y, -HS.Y, HS.Y);
+
+        LocalGoal.X = FMath::Clamp(LocalGoal.X, -HS.X, HS.X);
+        LocalGoal.Y = FMath::Clamp(LocalGoal.Y, -HS.Y, HS.Y);
+
+        LocalStart.Z = GetTrueSurfaceZ_Local(Asset, T, LocalStart, Platform->GetWorld());
+        LocalGoal.Z  = GetTrueSurfaceZ_Local(Asset, T, LocalGoal,  Platform->GetWorld());
+
+        Spline = NewObject<USplineComponent>(Platform);
+        Spline->RegisterComponent();
+        Spline->AttachToComponent(Platform->GetRootComponent(),
+            FAttachmentTransformRules::KeepRelativeTransform);
+
+        Spline->ClearSplinePoints(false);
+        Spline->AddPoint(FSplinePoint(0, LocalStart, ESplinePointType::Linear));
+        Spline->AddPoint(FSplinePoint(1, LocalGoal,  ESplinePointType::Linear));
+        Spline->SetClosedLoop(false);
+        Spline->UpdateSpline();
+    }
+
+    // Register active move
+    FMGDNActiveMove Move;
+    Move.Controller = Controller;
+    Move.Platform = PlatformOverride;
+    Move.Goal = Goal;
+    Move.LocalGoal = LocalGoal;
+    Move.Spline = Spline;
+    Move.bDirectMove = true;
+
+    Move.MoveSpeed = MoveSpeed;
+    Move.SplineDistance = 0.f;
+    Move.AcceptanceRadius = 25.f;
+    Move.Callback = Callback;
+
+    ActiveMoves.Add(Move);
+}
 
 bool UMGDynamicNavigationSubsystem::IsValidGameWorld() const
 {
@@ -748,7 +826,7 @@ TArray<UMGDNNavVolumeComponent*> UMGDynamicNavigationSubsystem::GetAllNavigation
     return Out;
 }
 
-bool UMGDynamicNavigationSubsystem::IsPawnOnShip(APawn* Pawn) const
+bool UMGDynamicNavigationSubsystem::IsPawnOnPlatform(APawn* Pawn) const
 {
     if (!Pawn) return false;
 
@@ -777,10 +855,10 @@ bool UMGDynamicNavigationSubsystem::IsPawnOnShip(APawn* Pawn) const
     return false;
 }
 
-bool UMGDynamicNavigationSubsystem::IsControllerOnShip(AAIController* Controller) const
+bool UMGDynamicNavigationSubsystem::IsControllerOnPlatform(AAIController* Controller) const
 {
     return (Controller && Controller->GetPawn()) ?
-        IsPawnOnShip(Controller->GetPawn()) : false;
+        IsPawnOnPlatform(Controller->GetPawn()) : false;
 }
 
 AActor* UMGDynamicNavigationSubsystem::GetPawnPlatform(APawn* Pawn) const

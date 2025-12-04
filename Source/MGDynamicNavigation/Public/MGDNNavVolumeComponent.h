@@ -22,10 +22,10 @@ public:
 	UMGDNRuntimeNavMesh* RuntimeNav = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="MGDN|Grid")
-	float CellSize = 100.f;
+	float CellSize = 200.f;
 
 	UPROPERTY(EditAnywhere, Category="MGDN|Grid")
-	float CellHeight = 100.f;
+	float CellHeight = 300.f;
 
 	UFUNCTION(CallInEditor, Category="MGDN")
 	void BakeNow();
