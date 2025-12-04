@@ -44,6 +44,14 @@ If you'd like to contribute, feel free to create a pull request.
 |:------------------------------------------------:|
 | Dynamic navigation on a physics-driven platform. |
 
+|             <img src="Resources/Example4.gif" width="790"/>              |
+|:------------------------------------------------------------------------:|
+| Direct move in and out of platforms with same system. UE Navmesh to MGDN |
+
+|               <img src="Resources/Example5.gif" width="790"/>                |
+|:----------------------------------------------------------------------------:|
+| Simple avoidance and re-pathing spline moves with additional stop movements. |
+
 ## Installation
 
 Install the plugin like any other Unreal Engine plugin:
