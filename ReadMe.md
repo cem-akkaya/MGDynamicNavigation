@@ -21,6 +21,9 @@ Typical use cases:
 - Physics-driven moving platforms
 - Complex ship layouts with ramps, slopes, and multi-layer geometry
 
+A demo with integrated plugin in action with physics moving ship can be found below a link.
+[MG Dynamic Navigation Demo UE5 Project](https://github.com/cem-akkaya/MGDynamicNavigationDemo)
+
 If you encounter any issues, please open a GitHub issue.  
 If you'd like to contribute, feel free to create a pull request.
 
