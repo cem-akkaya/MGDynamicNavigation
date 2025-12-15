@@ -1,7 +1,7 @@
 ﻿# MG Dynamic Navigation Plugin
 
 ![GitHub Release](https://img.shields.io/github/v/release/cem-akkaya/MGDynamicNavigation)
-[![Unreal Engine Supported Versions](https://img.shields.io/badge/Unreal_Engine-_%7C_5.6-9455CE?logo=unrealengine)](https://github.com/TO-FILL/MGDynamicNavigation/releases)
+[![Unreal Engine Supported Versions](https://img.shields.io/badge/Unreal_Engine-_%7C_5.6_%7C_5.7-9455CE?logo=unrealengine)](https://github.com/TO-FILL/MGDynamicNavigation/releases)
 [![License](https://img.shields.io/github/license/cem-akkaya/MGDynamicNavigation
 )](LICENSE)
 [![Actively Maintained](https://img.shields.io/badge/Maintenance%20Level-Actively%20Maintained-green.svg)](#)
